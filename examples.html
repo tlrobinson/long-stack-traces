@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title></title>
+    <script type="text/javascript" charset="utf-8" src="long-stack-traces.js"></script>
+    <script type="text/javascript" charset="utf-8">
+
+        function initSecondTimeout() {
+            window.setTimeout(function secondTimeout() {
+                try {
+                    throw new Error();
+                } catch (e) {
+                    console.log(e.stack)
+                }
+            }, 1000);
+        }
+
+        window.onload = function onload() {
+            function f() {
+                throw new Error('foo');
+            }
+            setTimeout(f, Math.random()*1000);
+            setTimeout(f, Math.random()*1000);
+
+            window.setTimeout(function firstTimeout() {
+                initSecondTimeout();
+            }, 1000);
+
+            document.getElementById("button").addEventListener("click", function baz() {
+                initSecondTimeout();
+            }, false);
+        }
+
+    </script>
+</head>
+<body>
+<input type="button" value="click me!" id="button">
+</body>
+</html>
