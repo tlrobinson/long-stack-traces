@@ -1,25 +1,31 @@
 (function() {
 
-    var traces = []; // there should actually never be more than one item in this array if all wrapped functions are asynchronous
-    var divider = "\n    " + Array(41).join("-") + "\n";
     var debug = false;
+    var rethrow = false;
+    var traces = []; // there should actually never be more than one item in this array if all wrapped functions are asynchronous
 
     var filename = new Error().stack.split("\n")[1].match(/^    at ((?:\w+:\/\/)?[^:]+)/)[1];
     function filterInternalFrames(frames) {
+        // return frames;
         return frames.split("\n").filter(function(frame) { return frame.indexOf(filename) < 0; }).join("\n");
     }
 
     Error.prepareStackTrace = function(error, structuredStackTrace) {
         var newTrace = filterInternalFrames(FormatStackTrace(error, structuredStackTrace));
-        return [newTrace].concat(traces).join(divider);
+        return [newTrace].concat(traces).join("\n    ----------------------------------------\n");
     }
 
     var slice = Array.prototype.slice;
     var hop = Object.prototype.hasOwnProperty;
 
     function wrapRegistrationFunction(object, property, callbackArg) {
-        if (!hop.call(object, property))
-            console.warn("Object", object, "does not directly contain property", property);
+        if (typeof object[property] !== "function") {
+            console.error("Object", object, "does not contain function", property);
+            return;
+        }
+        if (!hop.call(object, property)) {
+            console.warn("Object", object, "does not directly contain function", property);
+        }
 
         var fn = object[property];
 
@@ -35,7 +41,8 @@
                     return callback.apply(this, arguments);
                 } catch (e) {
                     console.error("Uncaught " + e.stack);
-                    // throw e;
+                    if (rethrow)
+                        throw undefined;
                 } finally {
                     traces.pop();
                 }
@@ -48,25 +55,37 @@
             console.warn("Couldn't replace ", property, "on", object);
     }
 
-    wrapRegistrationFunction(window.constructor.prototype, "setTimeout", 0);
-    wrapRegistrationFunction(window.constructor.prototype, "setInterval", 0);
+    // Chrome
+    if (typeof window !== "undefined") {
+        wrapRegistrationFunction(window.constructor.prototype, "setTimeout", 0);
+        wrapRegistrationFunction(window.constructor.prototype, "setInterval", 0);
 
-    var addEventListenerObjects = [
-        window.Node.prototype,
-        window.MessagePort.prototype,
-        window.SVGElementInstance.prototype,
-        window.WebSocket.prototype,
-        window.XMLHttpRequest.prototype,
-        window.EventSource.prototype,
-        window.XMLHttpRequestUpload.prototype,
-        window.SharedWorker.prototype.__proto__,
-        window.constructor.prototype,
-        window.applicationCache.constructor.prototype
-    ];
+        [
+            window.Node.prototype,
+            window.MessagePort.prototype,
+            window.SVGElementInstance.prototype,
+            window.WebSocket.prototype,
+            window.XMLHttpRequest.prototype,
+            window.EventSource.prototype,
+            window.XMLHttpRequestUpload.prototype,
+            window.SharedWorker.prototype.__proto__,
+            window.constructor.prototype,
+            window.applicationCache.constructor.prototype
+        ].forEach(function(object) {
+            wrapRegistrationFunction(object, "addEventListener", 1);
+        });
+    }
+    // Node.js
+    else if (typeof process !== "undefined") {
+        rethrow = true;
+        var g = (function() { return this; })();
 
-    addEventListenerObjects.forEach(function(object) {
-        wrapRegistrationFunction(object, "addEventListener", 1);
-    });
+        wrapRegistrationFunction(g, "setTimeout", 0);
+        wrapRegistrationFunction(g, "setInterval", 0);
+
+        // TODO: automatically wrap APIs that accept callbacks
+        // i.e. https://github.com/lm1/node-fiberize/blob/master/fiberize.js
+    }
 
     // Copyright 2006-2008 the V8 project authors. All rights reserved.
     // Redistribution and use in source and binary forms, with or without

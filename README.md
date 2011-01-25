@@ -1,7 +1,7 @@
 Long Stacktraces
 ================
 
-Long stacktraces for V8 implemented in user-land JavaScript.
+Long stacktraces for V8 implemented in user-land JavaScript. Supports Chrome/Chromium and Node.js.
 
 Background
 ----------
@@ -25,12 +25,10 @@ But what if we wanted something like this in the browser? It turns out V8 alread
 
 V8 has a [stack trace API](http://code.google.com/p/v8/wiki/JavaScriptStackTraceApi) that allows custom formatting of textual stack trace representations. By wrapping any function that registers an asynchronous event callback (e.x. `setTimeout` and `addEventListener` in the browser) we can store the stack trace at the time of callback registration, and later append it to stack traces. This also works for multiple levels of events (a timeout or event registered within a timeout or event, etc).
 
-Currently the only supported platform is Chrome, but other V8 platforms such as Node.js should be easy to support as well. Hopefully other JavaScript engines will eventually implement V8's stack trace API too.
-
 Usage
 -----
 
-Simply include the "long-stack-traces.js" via a script tag or other method before any event listener or timeout registrations.
+Simply include the "long-stack-traces.js" via a script tag or other method before any event listener or timeout registrations. In Node.js call `require("long-stack-traces")`.
 
 Stack traces from example above:
 
@@ -47,12 +45,26 @@ Stack traces from example above:
 
 Note one was from the timeout on line 27, the other on line 28. Events' stack traces are divided by a line of dashes.
 
-See examples.html for more examples.
+See examples.html for more examples, and run `node examples.js` for a Node.js example.
+
+Supported APIs
+--------------
+
+Currently supports the following APIs:
+
+### Chromium ###
+* setTimeout
+* setInterval
+* addEventListener
+
+### Node.js ###
+* setTimeout
+* setInterval
 
 TODO
 ----
 
-* Node.js support. Since Node.js has a large number of callback based APIs perhaps an automatic method of discovering and wrapping them would be possible.
+* More Node.js support. Since Node.js has a large number of callback based APIs perhaps an automatic method of discovering and wrapping them would be possible.
 * XMLHttpRequest's "onreadystatechange" and other DOM "on*" event properties are difficult to hook. Perhaps using Object.defineProperty?
 * Gracefully degrade in non-V8 environments.
 * Figure out what's up with these stack frames when throwing an exception from an input's event handler:
