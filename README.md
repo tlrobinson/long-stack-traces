@@ -28,6 +28,8 @@ V8 has a [stack trace API](http://code.google.com/p/v8/wiki/JavaScriptStackTrace
 Usage
 -----
 
+For Node.js install using `npm install long-stack-traces`.
+
 Simply include the "long-stack-traces.js" via a script tag or other method before any event listener or timeout registrations. In Node.js call `require("long-stack-traces")`.
 
 Stack traces from example above:
