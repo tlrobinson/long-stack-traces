@@ -1,4 +1,4 @@
-require("./long-stack-traces");
+require("./lib/long-stack-traces");
 
 var fs = require("fs");
 
