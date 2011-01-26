@@ -1,8 +1,7 @@
 (function() {
 
-    var debug = false;
     var rethrow = false;
-    var traces = []; // there should actually never be more than one item in this array if all wrapped functions are asynchronous
+    var currentTrace = null;
 
     var filename = new Error().stack.split("\n")[1].match(/^    at ((?:\w+:\/\/)?[^:]+)/)[1];
     function filterInternalFrames(frames) {
@@ -11,48 +10,64 @@
     }
 
     Error.prepareStackTrace = function(error, structuredStackTrace) {
-        var newTrace = filterInternalFrames(FormatStackTrace(error, structuredStackTrace));
-        return [newTrace].concat(traces).join("\n    ----------------------------------------\n");
+        return filterInternalFrames(FormatStackTrace(error, structuredStackTrace)) +
+                (currentTrace ? "\n    ----------------------------------------\n" + currentTrace : "");
     }
 
     var slice = Array.prototype.slice;
     var hop = Object.prototype.hasOwnProperty;
 
+    // Takes an object, a property name for the callback function to wrap, and an argument position
+    // and overwrites the function with a wrapper that captures the stack at the time of callback registration
     function wrapRegistrationFunction(object, property, callbackArg) {
         if (typeof object[property] !== "function") {
-            console.error("Object", object, "does not contain function", property);
+            console.error("(long-stack-trace) Object", object, "does not contain function", property);
             return;
         }
         if (!hop.call(object, property)) {
-            console.warn("Object", object, "does not directly contain function", property);
+            console.warn("(long-stack-trace) Object", object, "does not directly contain function", property);
         }
 
+        // TODO: better source position detection
+        var sourcePosition = (object.constructor.name || Object.prototype.toString.call(object)) + "." + property;
+
+        // capture the original registration function
         var fn = object[property];
-
+        // overwrite it with a wrapped registration function that modifies the supplied callback argument
         object[property] = function() {
-            var args = slice.call(arguments);
-            var callback = args[callbackArg];
-            var trace = "    at " + property + "\n" +
-                filterInternalFrames(new Error().stack.split("\n").slice(1).join("\n"));
-
-            args[callbackArg] = function() {
-                traces.push(trace);
-                try {
-                    return callback.apply(this, arguments);
-                } catch (e) {
-                    console.error("Uncaught " + e.stack);
-                    if (rethrow)
-                        throw undefined;
-                } finally {
-                    traces.pop();
-                }
-            }
-
-            return fn.apply(this, args);
+            // replace the callback argument with a wrapped version that captured the current stack trace
+            arguments[callbackArg] = makeWrappedCallback(arguments[callbackArg], sourcePosition);
+            // call the original registration function with the modified arguments
+            return fn.apply(this, arguments);
         }
 
+        // check that the registration function was indeed overwritten
         if (object[property] === fn)
-            console.warn("Couldn't replace ", property, "on", object);
+            console.warn("(long-stack-trace) Couldn't replace ", property, "on", object);
+    }
+
+    // Takes a callback function and name, and captures a stack trace, returning a new callback that restores the stack frame
+    // This function adds a single function call overhead during callback registration vs. inlining it in wrapRegistationFunction
+    function makeWrappedCallback(callback, frameLocation) {
+        // add a fake stack frame. we can't get a real one since we aren't inside the original function
+        var trace = "    at "+frameLocation+"\n" + filterInternalFrames(new Error().stack.split("\n").slice(1).join("\n"));
+        return function() {
+            if (currentTrace)
+                console.warn("(long-stack-trace) Internal Error: currentTrace already set.");
+            // restore the trace
+            currentTrace = trace;
+            try {
+                return callback.apply(this, arguments);
+            } catch (e) {
+                console.error("Uncaught " + e.stack);
+                if (rethrow)
+                    throw undefined; // TODO: throw the original error, or undefined?
+            } finally {
+                // clear the trace so we can check that none is set above.
+                // TODO: could we remove this for slightly better performace?
+                currentTrace = null;
+            }
+        }
     }
 
     // Chrome
@@ -74,14 +89,51 @@
         ].forEach(function(object) {
             wrapRegistrationFunction(object, "addEventListener", 1);
         });
+
+        // this actually captures the stack when "send" is called, which isn't ideal,
+        // but it's the best we can do without hooking onreadystatechange assignments
+        var _send = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function() {
+            this.onreadystatechange = makeWrappedCallback(this.onreadystatechange, "onreadystatechange");
+            return _send.apply(this, arguments);
+        }
+
+        // FIXME: experimental XHR wrapper for hooking onreadystatechange
+        // Based on https://gist.github.com/796032
+        // var _XMLHttpRequest = XMLHttpRequest;
+        // XMLHttpRequest = function () {
+        //     Object.defineProperty(this, "onreadystatechange", {
+        //         get: function() {
+        //             return this.__onreadystatechange;
+        //         },
+        //         set: function(onreadystatechange) {
+        //             if (this.__onreadystatechange && typeof this.__onreadystatechange.call === "function")
+        //                 this.removeEventListener("readystatechange", this.__onreadystatechange);
+        //             this.__onreadystatechange = makeWrappedCallback(onreadystatechange, "onreadystatechange");
+        //             if (this.__onreadystatechange && typeof this.__onreadystatechange.call === "function")
+        //                 this.addEventListener("readystatechange", this.__onreadystatechange);
+        //         },
+        //         enumerable: true
+        //     });
+        //     Object.defineProperty(this, "__onreadystatechange", {
+        //         value: null,
+        //         writable: true,
+        //         enumerable: false
+        //     });
+        // }
+        // XMLHttpRequest.prototype = new _XMLHttpRequest();
     }
     // Node.js
     else if (typeof process !== "undefined") {
         rethrow = true;
-        var g = (function() { return this; })();
 
-        wrapRegistrationFunction(g, "setTimeout", 0);
-        wrapRegistrationFunction(g, "setInterval", 0);
+        var global = (function() { return this; })();
+        wrapRegistrationFunction(global, "setTimeout", 0);
+        wrapRegistrationFunction(global, "setInterval", 0);
+
+        var EventEmitter = require('events').EventEmitter;
+        wrapRegistrationFunction(EventEmitter.prototype, "addListener", 1);
+        wrapRegistrationFunction(EventEmitter.prototype, "on", 1);
 
         // TODO: automatically wrap APIs that accept callbacks
         // i.e. https://github.com/lm1/node-fiberize/blob/master/fiberize.js

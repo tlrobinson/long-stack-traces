@@ -1,12 +1,10 @@
 require("./long-stack-traces");
 
-function initSecondTimeout() {
+var fs = require("fs");
+
+function initSecondTimeout(tag) {
     setTimeout(function secondTimeout() {
-        try {
-            throw new Error();
-        } catch (e) {
-            console.log(e.stack)
-        }
+        throw new Error(tag);
     }, 1000);
 }
 
@@ -18,8 +16,13 @@ function onload() {
     // setTimeout(f, Math.random()*1000);
 
     setTimeout(function firstTimeout() {
-        initSecondTimeout();
+        initSecondTimeout("timeout");
     }, 1000);
+
+    fs.readFile('README.md', 'utf8', function (err, data) {
+      if (err) throw err;
+      initSecondTimeout("readFile");
+    });
 }
 
 onload();

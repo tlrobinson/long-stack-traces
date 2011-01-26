@@ -53,19 +53,21 @@ Supported APIs
 Currently supports the following APIs:
 
 ### Chromium ###
-* setTimeout
-* setInterval
-* addEventListener
+* `setTimeout`
+* `setInterval`
+* `addEventListener`
+* `XMLHttpRequest.onreadystatechange` (stack actually recorded upon `send()`)
 
 ### Node.js ###
-* setTimeout
-* setInterval
+* `setTimeout`
+* `setInterval`
+* `EventEmitter.addListener`
+* `EventEmitter.on`
+* All APIs that use `EventEmitter`
 
 TODO
 ----
 
-* More Node.js support. Since Node.js has a large number of callback based APIs perhaps an automatic method of discovering and wrapping them would be possible.
-* XMLHttpRequest's "onreadystatechange" and other DOM "on*" event properties are difficult to hook. Perhaps using Object.defineProperty?
 * Gracefully degrade in non-V8 environments.
 * Figure out what's up with these stack frames when throwing an exception from an input's event handler:
     <error: TypeError: Accessing selectionEnd on an input element that cannot have a selection.>
