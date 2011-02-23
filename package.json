@@ -3,6 +3,7 @@
   "description": "Long stacktraces for V8 implemented in user-land JavaScript.",
   "version": "0.1.1",
   "author": "Tom Robinson <tom@tlrobinson.net> (http://tlrobinson.net/)",
+  "main" : "./lib/long-stack-traces",
   "directories": {
     "lib": "./lib"
   },
