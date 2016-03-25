@@ -3,6 +3,8 @@ Long Stacktraces
 
 Long stacktraces for V8 implemented in user-land JavaScript. Supports Chrome/Chromium and Node.js.
 
+NOTE: there are various issues such as memory leaks (due to *very* long stack traces). This should not be used in production.
+
 Background
 ----------
 
