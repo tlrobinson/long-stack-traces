@@ -65,6 +65,7 @@ Currently supports the following APIs:
 ### Node.js ###
 * `setTimeout`
 * `setInterval`
+* `setImmediate`
 * `process.nextTick`
 * `EventEmitter.addListener`
 * `EventEmitter.on`
