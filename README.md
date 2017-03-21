@@ -11,13 +11,14 @@ Background
 A common problem when debugging event-driven JavaScript is stack traces are limited to a single "event", so it's difficult to trace the code path that caused an error.
 
 A contrived example (taken from the PDF referenced below):
+```js
+function f() {
+    throw new Error('foo');
+}
 
-    function f() {
-        throw new Error('foo');
-    }
-
-    setTimeout(f, Math.random()*1000);
-    setTimeout(f, Math.random()*1000);
+setTimeout(f, Math.random()*1000);
+setTimeout(f, Math.random()*1000);
+```
 
 Which one throws the first error?
 
